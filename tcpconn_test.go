@@ -11,7 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-func exampleCallback(bts []byte) error {
+func exampleCallback(discrim int64, bts []byte) error {
 	msg := &message.Note{}
 	err := proto.Unmarshal(bts, msg)
 	return err
@@ -117,12 +117,12 @@ func TestDialBuffTCPUsesSpecifiedMaxMessageSize(t *testing.T) {
 
 func BenchmarkWrite(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		btc.Write(msgBytes)
+		btc.Write(1, msgBytes)
 	}
 }
 
 func BenchmarkWrite2(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		btc2.Write(msgBytes)
+		btc2.Write(1, msgBytes)
 	}
 }

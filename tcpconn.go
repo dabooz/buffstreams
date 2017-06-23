@@ -27,6 +27,9 @@ type TCPConn struct {
 	// For processing incoming data
 	incomingHeaderBuffer []byte
 
+	// For processing incoming discriminator
+	incomingDiscriminator []byte
+
 	// For processing outgoing data
 	writeLock          sync.Mutex
 	outgoingDataBuffer []byte
@@ -52,12 +55,13 @@ func newTCPConn(cfg *TCPConnConfig) (*TCPConn, error) {
 	headerByteSize := messageSizeToBitLength(maxMessageSize)
 
 	return &TCPConn{
-		maxMessageSize:       maxMessageSize,
-		headerByteSize:       headerByteSize,
-		address:              cfg.Address,
-		incomingHeaderBuffer: make([]byte, headerByteSize),
-		writeLock:            sync.Mutex{},
-		outgoingDataBuffer:   make([]byte, maxMessageSize),
+		maxMessageSize:        maxMessageSize,
+		headerByteSize:        headerByteSize,
+		address:               cfg.Address,
+		incomingHeaderBuffer:  make([]byte, headerByteSize),
+		incomingDiscriminator: make([]byte, 1),
+		writeLock:             sync.Mutex{},
+		outgoingDataBuffer:    make([]byte, maxMessageSize),
 	}, nil
 }
 
@@ -115,10 +119,10 @@ func (c *TCPConn) Close() error {
 // you pass in will be pre-pended with it's size. If the connection isn't open
 // you will receive an error. If not all bytes can be written, Write will keep
 // trying until the full message is delivered, or the connection is broken.
-func (c *TCPConn) Write(data []byte) (int, error) {
+func (c *TCPConn) Write(discriminator int8, data []byte) (int, error) {
 	// Calculate how big the message is, using a consistent header size.
 	// Append the size to the message, so now it has a header
-	c.outgoingDataBuffer = append(intToByteArray(int64(len(data)), c.headerByteSize), data...)
+	c.outgoingDataBuffer = append(intToByteArray(int64(len(data)), c.headerByteSize, discriminator), data...)
 
 	toWriteLen := len(c.outgoingDataBuffer)
 
@@ -189,22 +193,40 @@ func (c *TCPConn) lowLevelRead(buffer []byte) (int, error) {
 	return totalBytesRead, nil
 }
 
-func (c *TCPConn) Read(b []byte) (int, error) {
+func (c *TCPConn) Read(b []byte) (int, int64, error) {
 	// Read the header
 	hLength, err := c.lowLevelRead(c.incomingHeaderBuffer)
 	if err != nil {
-		return hLength, err
+		return hLength, 0, err
 	}
 	// Decode it
 	msgLength, bytesParsed := byteArrayToUInt32(c.incomingHeaderBuffer)
 	if bytesParsed == 0 {
 		// "Buffer too small"
 		c.Close()
-		return hLength, ErrZeroBytesReadHeader
+		return hLength, 0, ErrZeroBytesReadHeader
 	} else if bytesParsed < 0 {
 		// "Buffer overflow"
 		c.Close()
-		return hLength, ErrLessThanZeroBytesReadHeader
+		return hLength, 0, ErrLessThanZeroBytesReadHeader
+	}
+
+	// Read the discriminator
+	_, derr := c.lowLevelRead(c.incomingDiscriminator)
+	if derr != nil {
+		return hLength, 0, derr
+	}
+
+	// Decode it
+	discriminator, dBytesParsed := byteArrayToUInt32(c.incomingDiscriminator)
+	if dBytesParsed == 0 {
+		// "Buffer too small"
+		c.Close()
+		return hLength, discriminator, ErrZeroBytesReadHeader
+	} else if dBytesParsed < 0 {
+		// "Buffer overflow"
+		c.Close()
+		return hLength, discriminator, ErrLessThanZeroBytesReadHeader
 	}
 
 	// Using the header, read the remaining body
@@ -212,5 +234,5 @@ func (c *TCPConn) Read(b []byte) (int, error) {
 	if err != nil {
 		c.Close()
 	}
-	return bLength, err
+	return bLength, discriminator, err
 }

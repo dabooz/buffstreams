@@ -9,9 +9,10 @@ func byteArrayToUInt32(bytes []byte) (result int64, bytesRead int) {
 	return binary.Varint(bytes)
 }
 
-func intToByteArray(value int64, bufferSize int) []byte {
-	toWriteLen := make([]byte, bufferSize)
-	binary.PutVarint(toWriteLen, value)
+func intToByteArray(value int64, bufferSize int, discriminator int8) []byte {
+	toWriteLen := make([]byte, bufferSize + 1)
+	binary.PutVarint(toWriteLen, value + 1)
+	binary.PutVarint(toWriteLen[bufferSize:], int64(discriminator))
 	return toWriteLen
 }
 

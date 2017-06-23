@@ -119,7 +119,7 @@ func (bm *Manager) CloseWriter(address string) error {
 // WriteTo will open it, and cache it. If for anyreason the connection breaks, it will be disposed
 // a. If not all bytes can be written,
 // WriteTo will keep trying until the full message is delivered, or the connection is broken.
-func (bm *Manager) Write(address string, data []byte) (int, error) {
+func (bm *Manager) Write(address string, discriminator int8, data []byte) (int, error) {
 	// Get the connection if it's cached, or open a new one
 	bm.dialerLock.RLock()
 	btw, ok := bm.dialedConnections[address]
@@ -127,7 +127,7 @@ func (bm *Manager) Write(address string, data []byte) (int, error) {
 	if !ok {
 		return 0, ErrNotOpened
 	}
-	bytesWritten, err := btw.Write(data)
+	bytesWritten, err := btw.Write(discriminator, data)
 	if err != nil {
 		btw.Reopen()
 
