@@ -199,6 +199,7 @@ func (c *TCPConn) Read(b []byte) (int, int64, error) {
 	if err != nil {
 		return hLength, 0, err
 	}
+
 	// Decode it
 	msgLength, bytesParsed := byteArrayToUInt32(c.incomingHeaderBuffer)
 	if bytesParsed == 0 {
@@ -230,7 +231,7 @@ func (c *TCPConn) Read(b []byte) (int, int64, error) {
 	}
 
 	// Using the header, read the remaining body
-	bLength, err := c.lowLevelRead(b[:msgLength])
+	bLength, err := c.lowLevelRead(b[:msgLength-int64(dBytesParsed)])
 	if err != nil {
 		c.Close()
 	}

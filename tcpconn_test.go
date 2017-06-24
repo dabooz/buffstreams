@@ -14,6 +14,10 @@ import (
 func exampleCallback(discrim int64, bts []byte) error {
 	msg := &message.Note{}
 	err := proto.Unmarshal(bts, msg)
+	if err == nil {
+		cbInvoked += 1
+	}
+
 	return err
 }
 
@@ -56,9 +60,12 @@ var (
 	btc2     = &TCPConn{}
 	name     = "Stabby"
 	date     = time.Now().UnixNano()
-	data     = "This is an intenntionally long and rambling sentence to pad out the size of the message."
+	data     = "This is an intentionally long and rambling sentence to pad out the size of the message."
 	msg      = &message.Note{Name: &name, Date: &date, Comment: &data}
 	msgBytes = func(*message.Note) []byte { b, _ := proto.Marshal(msg); return b }(msg)
+
+	cbInvoked = 0
+	expectedCBInvoked = 1
 )
 
 func TestMain(m *testing.M) {
@@ -86,6 +93,12 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 	os.Exit(m.Run())
+}
+
+func TestAMsgFlow(t *testing.T) {
+	if _, err := btc.Write(1, msgBytes); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func TestDialBuffTCPUsesDefaultMessageSize(t *testing.T) {
@@ -124,5 +137,11 @@ func BenchmarkWrite(b *testing.B) {
 func BenchmarkWrite2(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		btc2.Write(1, msgBytes)
+	}
+}
+
+func TestZCheckMsg(t *testing.T) {
+	if cbInvoked != expectedCBInvoked {
+		t.Errorf("Expected callback invocations were %v, expecting %v", cbInvoked, expectedCBInvoked)
 	}
 }

@@ -176,6 +176,7 @@ func (t *TCPListener) readLoop(conn *TCPConn) {
 			conn.Close()
 			return
 		}
+
 		// We take action on the actual message data - but only up to the amount of bytes read,
 		// since we re-use the cache
 		if err = t.callback(discriminator, dataBuffer[:msgLen]); err != nil && t.enableLogging {
